@@ -1,3 +1,7 @@
+test
+.onsave
+node_modules
+
 # Logs
 logs
 *.log
