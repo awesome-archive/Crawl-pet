@@ -31,10 +31,7 @@ class Crawler {
 		this.info.tempdbpath  = Path.join(info.dbdir, "temp")
 		this.info.queuedbpath = Path.join(info.dbdir, "queue")
 	
-		if (!File.isdir( info.dbdir )) {
-			File.mkdir( this.info.dbdir )
-		}
-		
+		File.mkdir( this.info.dbdir )
 		if ( info["--restart"] ) {
 			print("[Crawl-pet Restart]")
 			File.del( info.tempdbpath )
@@ -46,7 +43,7 @@ class Crawler {
 		this.datadb   = LevelUp(info.maindbpath )
 		this.tempdb   = LevelUp(info.tempdbpath)
 		this.queuedb  = LevelUp(info.queuedbpath)
-		this.listener = Listener.create(this, info.limit || 5, info.sleep, info.timeout)
+		this.listener = Listener.create(this, info.limit || 5)
 
 		this.parser   = parser
 		this.fileFilter = null
@@ -216,74 +213,29 @@ class Crawler {
 	}
 
 	// 
-
-	resolvePath( url, ext ) {
-		switch (this.info.save) {
-			case "simple":
-				return Crawler.createFileName(url, ext)
-			
-			case "group":
-				if ( this._save_group_name === undefined ){
-					let dirs = File.lsdir( this.info.outdir, true )
-					this._save_group_name = 0
-					this._save_group_count = 0
-					if (dirs.length) {
-						for (let i=0; i<dirs.length; i++){
-							if (/^\d+$/.test(dirs[i])){
-								dirs[i] = parseInt(dirs[i])
-								if (dirs[i] > this._save_group_name) {
-									this._save_group_name = dirs[i]
-								}
-							}
-						}
-					}
-					this._save_group_count = File.lsfile(this.info.outdir + "/"+this._save_group_name, true).length
-				}
-				if (this._save_group_count >= 500){
-					this._save_group_name += 500
-					this._save_group_count = 0
-				}
-				this._save_group_count += 1
-				return this._save_group_name+"/"+Crawler.createFileName(url, ext)
-			
-			case "url": default:
-				return url.replace(/^(\w+\:\/\/|\/\/|\/|\.\.|\.)|\?.*/i, "")
-						  .replace(/[*\s]+/i, "_")
-						  .replace(/\?.+$/, "")
-		}
-	}
-
+	
 	loadPage(queue_handle){
 		const url    = queue_handle.value
-		const uri    = URL.parse(url)
-		if (!uri.protocol || !uri.host) {
+		const handle = new CrawlerHandle(this, "page", url , queue_handle)
+
+
+		if (!handle.uri.protocol || !handle.uri.host) {
 			queue_handle.next()
 			return
 		}
 
-		const handle = new CrawlerHandle(this, uri, queue_handle)
-
-		var options = {method: "GET", url: url, uri: uri }
-		if (this.info.headers) {
-			options.headers = this.info.headers
-		}
-		if (this.info.proxy) {
-			options.proxy = this.info.proxy
-		}
-		if (this._cookie_jar){
-			options.jar = this._cookie_jar
-		}
 		if (this.parser.header) {
-			if (this.parser.header(options, handle) === false){
+			if (this.parser.header(handle.options, handle) === false){
 				queue_handle.next()
 				return
 			}
 		}
 
 		try {
-			Request(options, (err, response, body)=>{
+			Request(handle.options, (err, response, body)=>{
 				this.tempdb.put(url, "loaded")
 				this.datadb.put("page."+url, "page")
+
 				if (err) {
 					print("[Crawl-pet LoadPage Error]", url, err && err.message)
 					queue_handle.next()
@@ -309,8 +261,8 @@ class Crawler {
 	}
 
 	downFile(queue_handle, no_size){
-		const url     = queue_handle.value
-		const info    = this.info
+		const url  = queue_handle.value
+		const info = this.info
 
 		if (!no_size && (info.maxsize || info.minwidth || info.minheight)) {
 			ImgSize.urlSize( url, (size)=>{
@@ -324,55 +276,76 @@ class Crawler {
 			})
 			return
 		}
-
-		const save_path = this.resolvePath(url)
-		if (!save_path) {
+		const handle = new CrawlerHandle(this, "down", url , queue_handle)
+		if (!handle.save_path) {
 			queue_handle.next()
 			return
 		}
-		const out_path = Path.join(info.outdir, save_path)
-		const out_dir  = Path.dirname(out_path)
+		const out_path = Path.join(info.outdir, handle.save_path)
+		File.mkdir( Path.dirname(out_path) )
+	
+		if (this.parser.header) {
+			if (this.parser.header(handle.options, handle) === false){
+				queue_handle.next()
+				return
+			}
+		}
 
-		var options = { method: "GET", url: url }
-		if (!File.isdir(out_dir)) {
-			File.mkdir(out_dir)
-		}
-		if (info.proxy) {
-			options.proxy = info.proxy
-		}
-		Request(options)
+		Request(handle.options)
 		.on("error", (err)=>{
 			print("[Crawl-pet Download Error]", url, Date.now()-queue_handle.timestamp+"ms")		
 			queue_handle.next()
 		})
 		.on("end", (err)=>{
-			print("[Crawl-pet Download]", url, "-->", save_path, Date.now()-queue_handle.timestamp+"ms")
+			print("[Crawl-pet Download]", url, "-->", handle.save_path, Date.now()-queue_handle.timestamp+"ms")
 			this.datadb.batch([
-				{type: "put", key: url, value: save_path},
-				{type: "put", key: "local."+save_path, value: url}
+				{type: "put", key: url, value: handle.save_path},
+				{type: "put", key: "local."+handle.save_path, value: url}
 			], (err)=>{
-				queue_handle.next()
+				handle.over()
 			})
 		})
 		.pipe( Fs.createWriteStream(out_path))
-	}
-
-	static createFileName( url, ext ) {
-		var m = url.match(/(\.\w+)(?:$|\?)/)
-		ext = m && m[1] || ext || ""
-		return Crypto.createHash('md5').update(url).digest('hex') + ext
 	}
 
 }
 
 class CrawlerHandle {
 
-	constructor(crawler, uri, queue_handle) {
+	constructor(crawler, type, url, queue_handle) {
 		this.parent       = crawler
+		this.type         = type
 		this.info         = crawler.info
+		this.uri          = URL.parse(url)
 		this.queue_handle = queue_handle
-		this.uri          = uri
-		this.uri.dirname  = (/\.\w+$/.test(uri.pathname) ? Path.dirname(uri.pathname) : uri.pathname)
+		var m = this.uri.pathname.match(/\/([^\/]*?)\.(\w+)$|\/$/)
+		if (m) {
+			this.uri.dirname  = this.uri.pathname.substr(0, m.index)
+			this.uri.basename = m[1]
+			this.uri.ext      = m[2]
+		}else{
+			this.uri.dirname = this.uri.pathname
+		}
+
+		this.options = { url: url, uri: this.uri }
+		if (type === "page" ) {
+			this.options.method = this.info.method || "GET"
+			if (this.info.headers) {
+				this.options.headers = this.info.headers
+			}
+			if (crawler._cookie_jar){
+				this.options.jar = crawler._cookie_jar
+			}
+			if (this.info.timeout){
+				this.options.timeout = this.info.timeout
+			}
+		}else{
+			this.options.method = "GET"
+			this.save_path = this.resolveSave(url)
+		}
+		if (this.info.proxy) {
+			this.options.proxy = this.info.proxy
+		}
 	}
 
 	resolveUrl( url ){
@@ -389,6 +362,45 @@ class CrawlerHandle {
 		}
 	}
 
+	resolveSave( url, ext){
+		const crawler = this.parent
+		switch (crawler.info.save) {
+			case "url": default:
+				let uri = URL.parse(url)
+				return Path.join(uri.host || "", uri.pathname).replace(/[\*\s]+/i, "_")
+			
+			// case "page":
+			// 	return this.uri.dirname + "/" + fileNameMD5(url, ext)
+
+			case "simple":
+				return fileNameMD5(url, ext)
+			
+			case "group":
+				if ( crawler._save_group_name === undefined ){
+					let dirs = File.lsdir( crawler.info.outdir, true )
+					crawler._save_group_name = 0
+					crawler._save_group_count = 0
+					if (dirs.length) {
+						for (let i=0; i<dirs.length; i++){
+							if (/^\d+$/.test(dirs[i])){
+								dirs[i] = parseInt(dirs[i])
+								if (dirs[i] > crawler._save_group_name) {
+									crawler._save_group_name = dirs[i]
+								}
+							}
+						}
+					}
+					crawler._save_group_count = File.lsfile(crawler.info.outdir + "/"+crawler._save_group_name, true).length
+				}
+				if (crawler._save_group_count >= 500){
+					crawler._save_group_name += 500
+					crawler._save_group_count = 0
+				}
+				crawler._save_group_count += 1
+				return crawler._save_group_name+"/"+fileNameMD5(url, ext)
+		}
+	}
+
 	addPage( url ){
 		this.parent.addPage( this.resolveUrl(url.trim()) )
 	}
@@ -398,7 +410,7 @@ class CrawlerHandle {
 	}
 
 	save(content, ext) {
-		var save_path = this.parent.resolvePath(this.uri.href, ext)
+		var save_path = this.parent.resolveSave(this.uri.href, ext)
 		if (save_path) {
 			var local_path = Path.join(this.info.outdir, save_path)
 			return File.write(local_path, content)
@@ -408,15 +420,25 @@ class CrawlerHandle {
 
 	over(){
 		if (this.queue_handle) {
-			this.queue_handle.next()
-			this.queue_handle = null
+			if (this.info.sleep > 0){
+				setTimeout(()=>{
+					this.queue_handle.next()
+				}, this.info.sleep);
+			}else{
+				this.queue_handle.next()
+			}
 		}
 	}
-
+	
 	stop(){
 		this.parent.stop()
 	}
+}
 
+function fileNameMD5( url, ext ) {
+	var m = url.match(/(\.\w+)(?:$|\?)/)
+	ext = m && m[1] || ext || ""
+	return Crypto.createHash('md5').update(url).digest('hex') + ext
 }
 
 function requireParser( file, dir ){
@@ -447,6 +469,7 @@ function requireParser( file, dir ){
 				}
 				parser = {body: parser}
 			}
+			print('[Crawl-pet Load Parser]', tests[i])
 			return parser
 		}
 	}

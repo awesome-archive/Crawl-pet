@@ -1,35 +1,32 @@
 
 "use strict"
 
-exports.create = function(db, id, limit = 5, listener, sleep = 0, timeout = 60000, protect = true){
+exports.create = function(db, id, limit = 5, listener, _protect = true){
 	if (!listener) {
 		throw "[Crawl-pet Queue Create Error] New Queue object need listener parameter!"
 	}
 	if (typeof listener.onNext !== "function" || typeof listener.onOver !== "function") {
 		throw "[Crawl-pet Queue Create Error] listener must has onNext and onOver method!"
 	}
-	return new Queue(db, id, limit, listener, sleep, timeout, protect)
+	return new Queue(db, id, limit, listener, _protect)
 }
 
 class Queue {
 
-	constructor(db, id, limit, listener, sleep, timeout, protect){
+	constructor(db, id, limit, listener, _protect){
 		this.db       = db
 		this.id       = id
 		this.status   = "stop"
 		this.limit    = limit
 		this.count    = 0
-		this.sleep    = sleep
 		this.listener = listener
-		this.timeout  = timeout
 
 		this._length_key    = this.id + ".length"
 		this._index_key     = this.id + ".index"
 		this._length        = undefined
 		this._index         = undefined
 		this._temp          = undefined
-		this._unqi_list     = protect ? [] : null
-		this._timeout_timer = null
+		this._unqi_list     = _protect ? [] : null
 	}
 
 	ready(callback){
@@ -48,9 +45,6 @@ class Queue {
 				}
 			})
 		})
-		if (this.timeout && !this._timeout_timer) {
-			Queue.checkTimeout(this)
-		}
 		return this
 	}
 
@@ -121,7 +115,6 @@ class Queue {
 	}
 
 	stop(){
-		clearInterval(this._timeout_timer);
 		this.status = "stop"
 	}
 
@@ -134,7 +127,6 @@ class Queue {
 			return
 		}
 		if (this._index >= this._length) {
-			clearInterval(this._timeout_timer);
 			if (this.count <= 0 && this.status === "runing") {
 				this.status = "waiting"
 				this.listener.onOver( new QueueHandle(this) )
@@ -161,21 +153,6 @@ class Queue {
 			})
 		}
 	}
-
-	static checkTimeout(queue) {
-		var last_index = queue._index
-		queue._timeout_timer = setInterval(() => {
-			if (last_index != queue._index || queue.status === "stop" || (queue._index >= queue._length && queue.count == 0) ) {
-				last_index = queue._index
-				return
-			}
-			if (typeof queue.listener.onTimeout === "function") {
-				queue.listener.onTimeout( new QueueHandle(queue) )
-			}else{
-				throw "[Crawl-pet Queue TimeOut] id: \""+queue.id+"\", length: "+queue._length+", index: "+queue._index
-			}
-		}, queue.timeout);
-	}
 }
 
 class QueueHandle {
@@ -193,27 +170,18 @@ class QueueHandle {
 
 	next(){
 		const queue = this.parent
-
 		if (this.index >= 0){
 			queue.db.batch([
 				{type:"del", key: this.parent.id+'.'+this.index},
 				{type:"del", key: this.parent.id+'.'+this.value}
 			])
 		}
-
 		queue.db.get( queue._index_key, (err, index)=>{
 			if (!index || parseInt(index) < this.index) {
 				queue.db.put( queue._index_key, this.index)
 			}
-			if (queue.sleep) {
-				setTimeout(()=>{
-					queue.count -= 1
-					queue.next()
-				}, queue.sleep);
-			}else{
-				queue.count -= 1
-				queue.next()
-			}
+			queue.count -= 1
+			queue.next()
 		})
 	}
 }

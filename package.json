@@ -2,7 +2,7 @@
   "name": "crawl-pet",
   "version": "0.0.1",
   "author": "wl879",
-  "description": "Support queue Nodejs collection framework",
+  "description": "Support queue Nodejs crawler framework",
   "main": "pet/index.js",
   "repository": {
     "type": "git",
@@ -21,5 +21,8 @@
     "nodejs-argv": "^1.0.0",
     "readline-sync": "^1.4.7",
     "request": "^2.81.0"
-  }
+  },
+  "keywords": [
+    "crawler", "crawl", "command","arguments"
+  ]
 }

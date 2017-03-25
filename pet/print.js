@@ -27,13 +27,12 @@ module.exports = function() {
 					}else if (/page/i.test(value)){
 						color = '\033[92m'
 					}
-					args.push( '\033[96m' + value + '\033[0m' + ' '.repeat( Math.max(15-value.length, 1)))
-				}else{
-					args.push(
-						value.replace(/(\b\d+ms\b|-->)/g, "\033[91m$1\033[0m")
-						.replace(/([rgbcdw])<([^>]+)>/g, ($0, $1, $2)=>{ return color_map[$1]+$2+'\033[0m'})
-					)
+					value = '\033[96m' + value.replace(']',']\033[0m') + ' '.repeat( Math.max(15-value.length, 1))
 				}
+				args.push(
+					value.replace(/(\b\d+ms\b|-->)/g, "\033[91m$1\033[0m")
+					.replace(/([rgbcdw])<([^>]+)>/g, ($0, $1, $2)=>{ return color_map[$1]+$2+'\033[0m'})
+				)
 			break
 			default:
 				args.push(value)

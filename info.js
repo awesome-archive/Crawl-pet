@@ -32,14 +32,14 @@ class Info {
 				"save"     : argv.get("--save") || "url",
 				"types"    : argv.get("--types") || "",
 				"limit"    : argv.get("--limit") || 5,
-				"parser"   : "",
-				"sleep"    : 200,
-				"timeout"  : 60000*3,
-				"headers"  : undefined,
-				"proxy"    : argv.get("--parser") || "",
+				"parser"   : argv.get("--parser") || "",
+				"sleep"    : argv.get("--sleep") || 200,
+				"timeout"  : argv.get("--timeout") || 60000*3,
+				"proxy"    : argv.get("--proxy") || "",
 				"maxsize"  : argv.get("--maxsize") || 0,
 				"minwidth" : argv.get("--minwidth") || 0,
-				"minheight": argv.get("--minheight") || 0
+				"minheight": argv.get("--minheight") || 0,
+				"headers"  : undefined
 			}
 		}
 		this.url = this._data.url || url

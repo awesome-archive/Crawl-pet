@@ -3,18 +3,18 @@ const LevelUp = require("levelup")
 const Queue   = require("./queue")
 const print   = require("./print")
 
-exports.create = function(crawler, limit, sleep, timeout){
-	return new Listener(crawler, limit, sleep, timeout)
+exports.create = function(crawler, limit){
+	return new Listener(crawler, limit)
 }
 
 class Listener {
 
-	constructor(crawler, limit, sleep, timeout){
+	constructor(crawler, limit){
 		this.parent = crawler
 		this.db     = crawler.queuedb
 		this.limit  = limit
-		this.page   = Queue.create(this.db, 'page', Math.max(limit * 0.25 >> 0, 1), this, sleep, timeout, false)
-		this.down   = Queue.create(this.db, 'down', Math.max(limit * 0.75 >> 0, 1), this, sleep, timeout, false)
+		this.page   = Queue.create(this.db, 'page', Math.max(limit * 0.25 >> 0, 1), this, false)
+		this.down   = Queue.create(this.db, 'down', Math.max(limit * 0.75 >> 0, 1), this, false)
 		
 		this._unqi_list = []
 		this._over_timer = null
@@ -64,9 +64,8 @@ class Listener {
 			clearTimeout(this._over_timer)
 			this._over_timer = null
 		}
-
 		if (queue_handle.parent.id === "down") {
-			crawler.downFile(queue_handle)
+			crawler.downFile( queue_handle )
 		}else{
 			crawler.loadPage( queue_handle )
 		}

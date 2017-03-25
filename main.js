@@ -3,7 +3,10 @@ const Argv = require("nodejs-argv");
 const Crawler = require("./pet");
 const Info = require("./info");
 
-const PARSER_TMP = `
+var error_message = (function(){
+	const starttime = Date.now()
+
+	const PARSER_TMP = `
 // Crawler-per parser template
 
 // header method is optional
@@ -25,16 +28,17 @@ exports.body = function(url, body, response, crawler_handle) {
 	crawler_handle.over()
 }
 `
-
-var error_message = (function(){
-	const starttime = Date.now()
 	try {
 		var argv = Argv.new([
 			["-u", "--url",      "str",         "Destination address"],
 			["-o", "--outdir",   "str",         "Save the directory, Default use pwd"],
 			["-r", "--restart",                 "Reload all page"],
 			["--clear",                         "Clear queue"],
-			["--save",           "str",         "Save file rules following options\n= url: Save the path consistent with url\n= simple: Save file in the project path\n= group: Save 500 files in one folder"],
+			["--save",           "str",         "Save file rules following options\n"+
+												"= url: Save the path consistent with url\n"+
+												// "= page: Save file in the page url path\n"+
+												"= simple: Save file in the project path\n"+
+												"= group: Save 500 files in one folder"],
 			["--types",          "[]",          "Limit download file type"],
 			["--limit",          "num=5",       "Concurrency limit"],
 			["--sleep",          "num=200",     "Concurrent interval"],
@@ -66,65 +70,75 @@ var error_message = (function(){
 		return `  Crawl-pet options help:\n\n${argv.help()}\n\n  g<More configuration in info.json file>\n`
 	}
 
-	const outdir = Path.resolve(argv.get("--outdir") || "")
-	const info   = Info.parse(outdir, argv)
+	var outdir = Path.resolve(argv.get("--outdir") || "")
+	var info   = Info.parse(outdir, argv)
+
+
 
 	if (!info.exist) {
-		let readSync = require("readline-sync")
-		if (readSync.keyInYN('Create crawl-pet in '+outdir)) {
-			let val = null
-			let create_parser = false
-			if ( !argv.get("--url") ){
-				if(val = readSync.question("Crawl-pet target url: ")){
-					info.set("url", val)
-				}
-			}
-			if ( !argv.get("--save") ){
-				if (val = readSync.question("Crawl-pet save rule [url/simple/group]: ", {limit: ['url', 'simple', "group"], defaultInput:"url"})) {
-					info.set("save", val)
-				}
-			}
-			if ( !argv.get("--parser") ){
-				if (val = readSync.question("Crawl-pet rule parser (default): ")){
-					let p = Path.join(outdir, val)
-					if (!Crawler.file.isfile(p)){
-						if (readSync.keyInYN('Crawl-pet will create '+p+' ')) {
-							create_parser = p
-							Crawler.file.write(p, PARSER_TMP)
-						}
+		// Create ask
+		let RLS = require("readline-sync")
+		function askArgv(name, opt, list) {
+			var val  = argv.get(name)
+			var tip  = null
+			if ( !val ) {
+				if (tip = list[0]) {
+					if (val = RLS.question( '\033[92m'+ tip +'\033[0m: ', opt)) {
+						argv.parse([name, val])
+						return val
 					}
-					info.set("parser", val)
+					if (list[2]) {
+						val = list[2]
+					}
 				}
 			}
-			if ( !argv.get("--types") ){
-				if (val = readSync.question("Crawl-pet file type limit (all): ")){
-					info.set("types", val.split(/ |,/))
-				}
+			if (val && (tip = list[1])) {
+				console.log('\033[91m'+ tip +'\033[0m: ', val)
 			}
-			info.save()
-			if (create_parser) {
-				return `[Crawl-pet Create Parser] ${create_parser}`
-			}
-		}else{
-			return "[Crawler exit]"
 		}
+
+		if ( askArgv('--outdir', {}, ["Set project dir"]) ) {
+			outdir = Path.resolve( argv.get("--outdir") )
+		}
+		if (! RLS.keyInYN('\033[91mCreate crawl-pet in '+outdir+'\033[0m')) {
+			return "[Crawl-pet exit] r<not project dir>"
+		}
+		askArgv("--url", {}, ["Set target url", "The target url"])
+		askArgv("--save", {limit: ['url', 'simple', "group"]}, ["Set save rule [url/simple/group]", "The rule"])
+		askArgv("--types", {}, ["Set file type limit", "The limit", "not limit"])
+		let create_parser = askArgv("--parser", {}, ["Set parser rule module", "The module", "use default Crawl-pet.parser"])
+
+		info   = Info.parse(outdir, argv)
+		info.save()
+		if (create_parser) {
+			create_parser = Path.join(outdir, create_parser)
+			if ( !Crawler.file.isfile(create_parser) && RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m') ){
+				Crawler.file.write(create_parser, PARSER_TMP)
+				return `[Crawl-pet Create Parser] b<${create_parser}>`
+			}
+		}
+		// Create end
 	}
 
 	if (argv.get("--create-parser")) {
-		let readSync = require("readline-sync")
-		let val = argv.get("--create-parser")
-		if (typeof val === "string") {
-			if (!/\.js$/i.test(val)) {
-				val = Path.join(val, "parser.js")
+		let RLS = require("readline-sync")
+		let create_parser = argv.get("--create-parser")
+		if (typeof create_parser === "string") {
+			if (!/\.js$/i.test(create_parser)) {
+				create_parser = Path.join(create_parser, "parser.js")
 			}
 		}else{
-			val = "parser.js"
+			create_parser = "parser.js"
 		}
-		val = Path.join(outdir, val)
-		if (readSync.keyInYN('Create will create '+val+' ')) {
-			Crawler.file.write(val, PARSER_TMP)		
+		create_parser = Path.join(outdir, create_parser)
+		if (RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m')) {
+			Crawler.file.write(create_parser, PARSER_TMP)		
 		}
-		return `[Crawl-pet Create Parser] ${val}`
+		return `[Crawl-pet Create Parser] b<${create_parser}>`
+	}
+
+	if (argv.get("--info")) {
+		return info._data
 	}
 
 	if (!info.url) {
@@ -132,10 +146,6 @@ var error_message = (function(){
 	}
 
 	var crawler = Crawler.create(info.data)
-
-	if (argv.get("--info")) {
-		return info._data
-	}
 
 	if (argv.get("--list")) {
 		let value = argv.get("--list")
@@ -177,10 +187,10 @@ var error_message = (function(){
 		}
 		crawler.addPage( url )
 	}
-	crawler.run(() => {
-		Crawler.print("[Crawler Exit] Crawler!! over")
-	})
 
+	crawler.run(() => {
+		Crawler.print("[Crawler Exit] g<Crawler!! over>")
+	})
 
 })()
 
