@@ -1,4 +1,5 @@
-const Path = require('path');
+#!/usr/bin/env node
+const Path = require("path");
 const Argv = require("nodejs-argv");
 const Crawler = require("./pet");
 const Info = require("./info");
@@ -73,7 +74,22 @@ exports.body = function(url, body, response, crawler_handle) {
 	var outdir = Path.resolve(argv.get("--outdir") || "")
 	var info   = Info.parse(outdir, argv)
 
-
+	if (argv.get("--create-parser")) {
+		let RLS = require("readline-sync")
+		let create_parser = argv.get("--create-parser")
+		if (typeof create_parser === "string") {
+			if (!/\.js$/i.test(create_parser)) {
+				create_parser = Path.join(create_parser, "parser.js")
+			}
+		}else{
+			create_parser = "parser.js"
+		}
+		create_parser = Path.join(outdir, create_parser)
+		if (RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m')) {
+			Crawler.file.write(create_parser, PARSER_TMP)		
+		}
+		return `[Crawl-pet Create Parser] ${create_parser}`
+	}
 
 	if (!info.exist) {
 		// Create ask
@@ -111,30 +127,16 @@ exports.body = function(url, body, response, crawler_handle) {
 		info   = Info.parse(outdir, argv)
 		info.save()
 		if (create_parser) {
+			if (!/\.js$/i.test( create_parser )) {
+				create_parser += '.js'
+			}
 			create_parser = Path.join(outdir, create_parser)
 			if ( !Crawler.file.isfile(create_parser) && RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m') ){
 				Crawler.file.write(create_parser, PARSER_TMP)
-				return `[Crawl-pet Create Parser] b<${create_parser}>`
+				return `[Crawl-pet Create Parser] ${create_parser}`
 			}
 		}
 		// Create end
-	}
-
-	if (argv.get("--create-parser")) {
-		let RLS = require("readline-sync")
-		let create_parser = argv.get("--create-parser")
-		if (typeof create_parser === "string") {
-			if (!/\.js$/i.test(create_parser)) {
-				create_parser = Path.join(create_parser, "parser.js")
-			}
-		}else{
-			create_parser = "parser.js"
-		}
-		create_parser = Path.join(outdir, create_parser)
-		if (RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m')) {
-			Crawler.file.write(create_parser, PARSER_TMP)		
-		}
-		return `[Crawl-pet Create Parser] b<${create_parser}>`
 	}
 
 	if (argv.get("--info")) {
