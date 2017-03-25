@@ -1,6 +1,8 @@
 test
 .onsave
 node_modules
+pic
+DESCRIPTION.md
 
 # Logs
 logs

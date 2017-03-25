@@ -57,7 +57,7 @@ exports.body = function(url, body, response, crawler_handle) {
 			["--json",                          "Print result to json format"],
 			["-v", "--version",                 "View version"],
 			["-h", "--help",                    "View help"],
-			["--create-parser",    "str",       "Create a parser.js file"]
+			["--create-parser",    "str",       "Create a parser.js template"]
 		]).parse()
 	}catch(e){
 		return `  Crawl-pet options error: r<${e}>\n  Crawl-pet options help:\n${argv.help()}`
@@ -86,9 +86,10 @@ exports.body = function(url, body, response, crawler_handle) {
 		}
 		create_parser = Path.join(outdir, create_parser)
 		if (RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m')) {
-			Crawler.file.write(create_parser, PARSER_TMP)		
+			Crawler.file.write(create_parser, PARSER_TMP)
+			return `[Crawl-pet Create Parser] ${create_parser}`	
 		}
-		return `[Crawl-pet Create Parser] ${create_parser}`
+		return `[Crawl-pet Create Parser Faile]`
 	}
 
 	if (!info.exist) {
