@@ -237,8 +237,8 @@ class Crawler {
 				this.datadb.put("page."+url, "page")
 
 				if (err) {
-					print("[Crawl-pet LoadPage Error]", url, err && err.message)
 					queue_handle.next()
+					print("[Crawl-pet LoadPage Error]", url, err && err.message)
 					return
 				}
 			
@@ -246,16 +246,16 @@ class Crawler {
 					print("[Crawl-pet. LoadPage]", url, response.statusCode, Date.now()-queue_handle.timestamp + "ms")
 					this.parser.body( url, body, response, handle)
 				} else {
-					print("[Crawl-pet. LoadPage Failed]", url, response.statusCode, Date.now()-queue_handle.timestamp + "ms")
 					queue_handle.next()
+					print("[Crawl-pet. LoadPage Failed]", url, response.statusCode, Date.now()-queue_handle.timestamp + "ms")
 				}
 				if (this._cookie_jar) {
 					this.tempdb.put("cookie", this._cookie_jar.getCookieString(this.info.url))
 				}
 			})
 		}catch (e){
-			print("[Crawl-pet Request Error]", url, err && err.message)
 			queue_handle.next()
+			print("[Crawl-pet Request Error]", url, err && err.message)
 			return
 		}
 	}
@@ -293,8 +293,8 @@ class Crawler {
 
 		Request(handle.options)
 		.on("error", (err)=>{
-			print("[Crawl-pet Download Error]", url, Date.now()-queue_handle.timestamp+"ms")		
 			queue_handle.next()
+			print("[Crawl-pet Download Error]", url, Date.now()-queue_handle.timestamp+"ms")
 		})
 		.on("end", (err)=>{
 			print("[Crawl-pet Download]", url, "-->", handle.save_path, Date.now()-queue_handle.timestamp+"ms")

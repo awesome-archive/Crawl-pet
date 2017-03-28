@@ -120,6 +120,9 @@ exports.body = function(url, body, response, crawler_handle) {
 		if (! RLS.keyInYN('\033[91mCreate crawl-pet in '+outdir+'\033[0m')) {
 			return "[Crawl-pet exit] r<not project dir>"
 		}
+		if (argv.get("_").length > 0) {
+			argv.parse(["--url", argv.get("_")[0]])
+		}
 		askArgv("--url", {}, ["Set target url", "The target url"])
 		askArgv("--save", {limit: ['url', 'simple', "group"]}, ["Set save rule [url/simple/group]", "The rule"])
 		askArgv("--types", {}, ["Set file type limit", "The limit", "not limit"])
