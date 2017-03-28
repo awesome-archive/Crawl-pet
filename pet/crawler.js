@@ -336,12 +336,12 @@ class CrawlerHandle {
 			if (crawler._cookie_jar){
 				this.options.jar = crawler._cookie_jar
 			}
-			if (this.info.timeout){
-				this.options.timeout = this.info.timeout
-			}
 		}else{
 			this.options.method = "GET"
 			this.save_path = this.resolveSave(url)
+		}
+		if (this.info.timeout){
+			this.options.timeout = this.info.timeout
 		}
 		if (this.info.proxy) {
 			this.options.proxy = this.info.proxy

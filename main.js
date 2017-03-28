@@ -155,7 +155,7 @@ exports.body = function(url, body, response, crawler_handle) {
 
 	if (argv.get("--list")) {
 		let value = argv.get("--list")
-		let type  = value[0] || "page"
+		let type  = value[0] || "queue"
 		crawler.list(type, value[1] || 0, value[2] || -1, (res)=>{
 			if (argv.get("--json")) {
 				console.log(JSON.stringify(res))
@@ -195,7 +195,7 @@ exports.body = function(url, body, response, crawler_handle) {
 	}
 
 	crawler.run(() => {
-		Crawler.print("[Crawler Exit] g<Crawler!! over>")
+		Crawler.print("[Crawler Exit] g<Crawler is over. you can use> \"--restart\" g<reload page>")
 	})
 
 })()
