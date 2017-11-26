@@ -1,206 +1,218 @@
 #!/usr/bin/env node
-const Path = require("path");
-const Argv = require("nodejs-argv");
-const Crawler = require("./pet");
-const Info = require("./info");
 
-var error_message = (function(){
-	const starttime = Date.now()
+const ___print = require("hi-lib/print");
+const Path = require('path');
+const Argv = require("hi-lib/argv");
+const File = require("hi-lib/file");
+const Queen = require("./src/queen");
+const Loader = require("./src/loader");
+const Util = require('./src/util');
+const ChildProcess = require('child_process');
 
-	const PARSER_TMP = `
-// Crawler-per parser template
 
-// header method is optional
-exports.header = function(options, crawler_handle) {
-	// The "options" is request option
+const argv = Argv.new(`
+Crawl Pet Help:
+  Usage: #c{crawl-pet .}
+  
+  Options:
+    #c{+new}            [url]                                     #d{新建一个项目}
+    #c{-r, --restart}                                             #d{从起始地址重新加载}
+    #c{-c, --config}    <name[=value]>...                         #d{读写项目配置}
+    #c{-i, --info}                                                #d{查看项目的信息}
+    #c{-l, --list}      <page|download|local>                     #d{查看队列数据}
+    #c{-f, --find}      <type> <keyword>                          #d{查找队列的数据}
+    #c{-d, --delete}                                              #d{删除匹配的队列数据}
+    #c{--json}                                                    #d{对的数据以json格式输出}
+    #c{--proxy}         <127.0.0.1:1087>                          #d{临时改变项目的代理配置}
+    #c{--parser}        <path>                                    #d{临时改变项目的解析器}
+    #c{-v, --version}                                             #d{查看软件版本}
+    #c{-h, --help}                                                #d{查看帮助信息}
+
+#r{More configuration in info.json file!}
+`);
+
+try {
+	argv.parse();
+} catch (e) {
+	___print(`Crawl-pet options error:\n  #r{${e}}\n${argv.help()}`);
+	process.exit(1);
+}
+if (argv.get("--version")) {
+	___print(`Crawl-pet version: #g{${argv.version()}}`);
+	process.exit();
+}
+if (argv.get("--help")) {
+	___print(argv.help());
+	process.exit();
 }
 
-exports.body = function(url, body, response, crawler_handle) {
-	const re = /\\b(href|src)\\s*=\\s*["']([^'"#]+)/ig
-	var m = null
-	while (m = re.exec(body)){
-		let href = m[2]
-		if (/\\.(png|gif|jpg|jpeg|mp4)\\b/i.test(href)) {
-			crawler_handle.addDown(href)
-		}else if(!/\\.(css|js|json|xml|svg)/.test(href)){
-			crawler_handle.addPage(href)
+_step1();
+
+function _step1() {
+	let ref;
+	if (ref = argv.get('new')) {
+		let Creater = require('./creater');
+		Creater.config(typeof ref === 'string' ? ref : '').then((loader) => {
+			___print.read.anykey({
+				prompt: '#g{✔︎} #y{创建项目完成, 按 Enter 继续} : ',
+				keys: ['enter', 'return']
+			}).then(() => {
+				_step2(loader);
+				___print.line('#d{-}');
+			});
+		});
+	} else {
+		let loader = Loader.load(argv._[0] || './');
+		if (!loader) {
+			___print('#r{!} 没有找到爬虫.');
+			process.exit(1);
 		}
+		_step2(loader);
 	}
-	crawler_handle.over()
 }
-`
-	try {
-		var argv = Argv.new([
-			["-u", "--url",      "str",         "Destination address"],
-			["-o", "--outdir",   "str",         "Save the directory, Default use pwd"],
-			["-r", "--restart",                 "Reload all page"],
-			["--clear",                         "Clear queue"],
-			["--save",           "str",         "Save file rules following options\n"+
-												"= url: Save the path consistent with url\n"+
-												// "= page: Save file in the page url path\n"+
-												"= simple: Save file in the project path\n"+
-												"= group: Save 500 files in one folder"],
-			["--types",          "[]",          "Limit download file type"],
-			["--limit",          "num=5",       "Concurrency limit"],
-			["--sleep",          "num=200",     "Concurrent interval"],
-			["--timeout",        "num=180000",  "Queue timeout"],
-			["--proxy",           "str",        "Set up proxy"],
-			["--parser",          "str",        "Set crawl rule, it's a js file path!\nThe default load the parser.js file in the project path"],
 
-			["--maxsize",         "num",        "Limit the maximum size of the download file"],
-			["--minwidth",        "num",        "Limit the minimum width of the download file"],
-			["--minheight",       "num",        "Limit the minimum height of the download file"],
-
-			["-i", "--info",                    "View the configuration file"],
-			["-l", "--list",       "[]",        "View the queue data \ne.g. [page/down/queue],0,-1"],
-			["-f", "--find",       "[]",        "Find the download URL of the local file"],
-			["--json",                          "Print result to json format"],
-			["-v", "--version",                 "View version"],
-			["-h", "--help",                    "View help"],
-			["--create-parser",    "str",       "Create a parser.js template"]
-		]).parse()
-	}catch(e){
-		return `  Crawl-pet options error: r<${e}>\n  Crawl-pet options help:\n${argv.help()}`
+function _step2(loader) {
+	let ref;
+	if (ref = argv.get('config')) {
+		_checkConfig(loader, ref);
 	}
-
-	if (argv.get("--version")) {
-		return `  Crawl-pet version: g<${argv.version()}>`
+	if (ref = argv.get('parser')) {
+		if (!File.isfile(ref)) {
+			___print(`! #r{没有找到文件 #g{${ref}}}`);
+			process.exit(1);
+		}
+		loader.extends(Path.resolve(ref));
 	}
-
-	if (argv.get("--help")) {
-		return `  Crawl-pet options help:\n\n${argv.help()}\n\n  g<More configuration in info.json file>\n`
+	if (argv.get('list')) {
+		_listCommand(loader);
 	}
+	if (argv.get('find')) {
+		_findCommand(loader);
+	}
+	if (loader.get('runJs') || loader.get('implant')) {
 
-	var outdir = Path.resolve(argv.get("--outdir") || "")
-	var info   = Info.parse(outdir, argv)
+		// "electron": "^1.7.9",
+		// console.log((__dirname + '/node_modules/electron'))
+		// if (!File.isdir(__dirname + '/node_modules/electron')) {
+		// 	___print('#r{!} 安装 electron 插件 ...');
 
-	if (argv.get("--create-parser")) {
-		let RLS = require("readline-sync")
-		let create_parser = argv.get("--create-parser")
-		if (typeof create_parser === "string") {
-			if (!/\.js$/i.test(create_parser)) {
-				create_parser = Path.join(create_parser, "parser.js")
+		// 	let ref = ChildProcess.execSync('npm install electron', { cwd: __dirname });
+		// 	console.log(ref);
+
+		// }
+		// console.log(module.paths);
+		process.exit();
+	}
+	_runCrawler(loader);
+}
+
+function _checkConfig(loader, value) {
+	if (value.length) {
+		let text = [];
+		for (let item of value) {
+			let kv = item.split('=', 2);
+			if (kv.length === 2) {
+				let v = kv[1].replace(/^['"]|['"]$/g, '');
+				loader.set(kv[0], /^\d+$/.test(v) ? parseInt(v) : v);
 			}
-		}else{
-			create_parser = "parser.js"
+			text.push(`${kv[0]}:${JSON.stringify(loader.get(kv[0]))}`);
 		}
-		create_parser = Path.join(outdir, create_parser)
-		if (RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m')) {
-			Crawler.file.write(create_parser, PARSER_TMP)
-			return `[Crawl-pet Create Parser] ${create_parser}`	
-		}
-		return `[Crawl-pet Create Parser Faile]`
+		___print.column(text.join('\n'), ':');
+		loader.save();
 	}
+	process.exit();
+}
 
-	if (!info.exist) {
-		// Create ask
-		let RLS = require("readline-sync")
-		function askArgv(name, opt, list) {
-			var val  = argv.get(name)
-			var tip  = null
-			if ( !val ) {
-				if (tip = list[0]) {
-					if (val = RLS.question( '\033[92m'+ tip +'\033[0m: ', opt)) {
-						argv.parse([name, val])
-						return val
-					}
-					if (list[2]) {
-						val = list[2]
-					}
+function _listCommand(loader) {
+	let crawler = new Queen(loader, argv);
+	_forEach(crawler, argv.get('list'));
+	process.exit();
+}
+
+function _findCommand(loader) {
+	let queen = new Queen(loader, argv);
+	let type = argv.get('find')[0];
+	let find = argv.get('find')[1];
+	let del = argv.get('delete');
+	find = /^\/(.*)\/(i?)$/.test(find) ? new RegExp(RegExp.$1, RegExp.$2) : File.wildcardToRegExp(find, true);
+	_forEach(queen, type, (key, value) => {
+		if (type === 'local') {
+			if (!(find.test(value.local) || find.test(value.url))) {
+				return;
+			}
+		} else if (!find.test(value)) {
+			return;
+		}
+		if (del) {
+			queen.db.delete(type, key);
+			___print.write('#r{[delete]} ');
+		}
+		return value;
+	});
+	process.exit();
+}
+
+function _forEach(crawler, type, callback) {
+	let count = 0;
+	let json = argv.get('json');
+	if (json) {
+		___print('[');
+	}
+	crawler.forEach(type, (key, value) => {
+		let ref = callback ? callback(key, value) : value;
+		if (ref) {
+			count += 1;
+			if (json) {
+				let text = JSON.stringify(value);
+				___print(text.replace(/^/g, '  ') + ',');
+			} else {
+				if (type === 'local') {
+					___print(value.url, '#g{>>}', value.local);
+				} else {
+					___print(value);
 				}
 			}
-			if (val && (tip = list[1])) {
-				console.log('\033[91m'+ tip +'\033[0m: ', val)
-			}
 		}
-
-		if ( askArgv('--outdir', {}, ["Set project dir"]) ) {
-			outdir = Path.resolve( argv.get("--outdir") )
-		}
-		if (! RLS.keyInYN('\033[91mCreate crawl-pet in '+outdir+'\033[0m')) {
-			return "[Crawl-pet exit] r<not project dir>"
-		}
-		if (argv.get("_").length > 0) {
-			argv.parse(["--url", argv.get("_")[0]])
-		}
-		askArgv("--url", {}, ["Set target url", "The target url"])
-		askArgv("--save", {limit: ['url', 'simple', "group"]}, ["Set save rule [url/simple/group]", "The rule"])
-		askArgv("--types", {}, ["Set file type limit", "The limit", "not limit"])
-		let create_parser = askArgv("--parser", {}, ["Set parser rule module", "The module", "use default Crawl-pet.parser"])
-
-		info   = Info.parse(outdir, argv)
-		info.save()
-		if (create_parser) {
-			if (!/\.js$/i.test( create_parser )) {
-				create_parser += '.js'
-			}
-			create_parser = Path.join(outdir, create_parser)
-			if ( !Crawler.file.isfile(create_parser) && RLS.keyInYN('\033[91mCreate parser module "'+create_parser+'"\033[0m') ){
-				Crawler.file.write(create_parser, PARSER_TMP)
-				return `[Crawl-pet Create Parser] ${create_parser}`
-			}
-		}
-		// Create end
+	});
+	if (json) {
+		___print(']');
+	} else {
+		___print(`#y{[Total]} #r{${count}}`);
 	}
-
-	if (argv.get("--info")) {
-		return info._data
-	}
-
-	if (!info.url) {
-		return `Missing "url" parameter:\n${argv.help()}`
-	}
-
-	var crawler = Crawler.create(info.data)
-
-	if (argv.get("--list")) {
-		let value = argv.get("--list")
-		let type  = value[0] || "queue"
-		crawler.list(type, value[1] || 0, value[2] || -1, (res)=>{
-			if (argv.get("--json")) {
-				console.log(JSON.stringify(res))
-				return
-			}
-			for (let i = 0; i < res.length; i++) {
-				if (res[i].local) {
-					console.log("Url:", res[i].url, "Local:", res[i].local)
-				}else{
-					console.log("Url:", res[i].url)
-				}
-			}
-			Crawler.print("[Crawler list]", type+" count:", res.length, ", use time:", Date.now() - starttime + "ms")
-		})
-		return ""
-	}
-
-	if (argv.get("--find")) {
-		crawler.find(argv.get("--find"), (res) => {
-			if (argv.get("--json")) {
-				console.log(JSON.stringify(res))
-				return
-			}
-			for (let i = 0; i < res.length; i++) {
-				console.log("Local:", res[i].key, ", Url:", res[i].url)
-			}
-			Crawler.print("[Crawler find]", "result:", res.length, ", use time:", Date.now() - starttime + "ms")
-		})
-		return ""
-	}
-	if (argv.get("--url")) {
-		let url = argv.get("--url")
-		if (!/^\w+:\/\//.test(url)){
-			url = "http://" + url
-		}
-		crawler.addPage( url )
-	}
-
-	crawler.run(() => {
-		Crawler.print("[Crawler Exit] g<Crawler is over. you can use> \"--restart\" g<reload page>")
-	})
-
-})()
-
-if (error_message){
-	Crawler.print(error_message)
 }
 
+function _runCrawler(loader) {
+	let print_stack = ___print.stack();
+	print_stack.debug = true;
+
+	print_stack.update('---->', '#y{正在加载队列....}');
+	let startTime = Date.now();
+	let crawl_queen = new Queen(loader, argv);
+
+	crawl_queen.on('start', () => {
+		startTime = Date.now();
+	});
+	crawl_queen.on('over', () => {
+		___print(`\n#g{[Over]} run time: #y{${Util.countTime(Date.now() - startTime)}}`);
+	});
+	crawl_queen.on('loading', (request) => {
+		print_stack.update(request.url, '#c{[-]} #d{' + request.url + '}');
+	});
+	crawl_queen.on('loaded', (request, response) => {
+		response = response || {};
+		let status = response.ok ? '  #g{✔︎}' : '  #r{✘}';
+		let msg = response.error || response.message;
+		print_stack.final(request.url, `#c{[-]} ${request.url}  ${status} ${msg ? ': ' + msg : ''}`);
+	});
+	crawl_queen.on('downloading', (request) => {
+		print_stack.update(request.url, '#g{[⇣]} #d{' + request.url + '}');
+	});
+	crawl_queen.on('downloaded', (request, response) => {
+		response = response || {};
+		let status = response.ok ? '  #g{✔︎}' : '  #r{✘}';
+		let msg = response.error || response.message;
+		print_stack.final(request.url, `#g{[⇣]} ${request.url}  ${status} ${msg ? ': ' + msg : ''}`);
+	});
+	crawl_queen.start(argv.get('restart'));
+	print_stack.update('---->', '#g{开始爬取}');
+}

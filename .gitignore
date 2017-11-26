@@ -1,6 +1,8 @@
 test
+crawls/
 .onsave
 node_modules
+package-lock.json
 pic
 DESCRIPTION.md
 

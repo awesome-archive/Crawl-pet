@@ -21,6 +21,12 @@ After creating the project, will generate `info.json` file in the project direct
 ```json
 // info.json
 
+
+		// "cheerio": "^0.22.0",
+		// "nodejs-argv": "^1.0.0",
+		// "readline-sync": "^1.4.7",
+		// "request": "^2.81.0"
+
 {
     "url"      : "xxxx.com",
     "outdir"   : ".",

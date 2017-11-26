@@ -1,28 +1,32 @@
 {
-  "name": "crawl-pet",
-  "version": "0.0.5",
-  "author": "wl879",
-  "description": "Support queue Nodejs crawler framework",
-  "main": "pet/index.js",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/wl879/crawler-pet.git"
-  },
-  "bin": {
-    "crawl-pet": "./main.js"
-  },
-  "scripts": {
-    "test": "node ./main.js --help"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "cheerio": "^0.22.0",
-    "level": "^1.6.0",
-    "nodejs-argv": "^1.0.0",
-    "readline-sync": "^1.4.7",
-    "request": "^2.81.0"
-  },
-  "keywords": [
-    "crawler", "crawl", "command","arguments"
-  ]
+	"name": "crawl-pet",
+	"version": "1.0.0",
+	"author": "Wang Liang",
+	"description": "Support queue Nodejs crawler framework",
+	"main": "pet/index.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/wl879/crawl-pet.git"
+	},
+	"bin": {
+		"crawl-pet": "./main.js"
+	},
+	"scripts": {
+		"test": "node ./main.js --help"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"hi-lib": "^0.1.2",
+		"hi-fetch": "^0.0.1",
+		"leveldb-addon": "^2.0.4"
+	},
+	"devDependencies": {
+		"hi-test": "~1.0.5"
+	},
+	"keywords": [
+		"crawler",
+		"crawl",
+		"command",
+		"arguments"
+	]
 }
