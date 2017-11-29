@@ -9,7 +9,7 @@ const Later = require('hi-lib/later');
 const Ipc = require('hi-lib/ipc');
 const DB = require('./db');
 const Util = require('./util');
-const Crawl = require('./crawl');
+const Crawler = require('./crawler');
 
 const laterCheckPageQueue = new Later(_checkPageQueue);
 const laterCheckDownloadQueue = new Later(_checkDownloadQueue);
@@ -21,6 +21,7 @@ class Queen extends EventEmitter {
         this.runing = false;
         this.argv = argv || { get() { }, set() { } };
         this.loader = loader;
+        this.head = loader.export();
         this.db = new DB(loader.projectDir);
         let limit = this.head.limits || 5;
         this.pageLimit = Math.max(1, limit / 30 >> 0);
@@ -28,20 +29,22 @@ class Queen extends EventEmitter {
         this.pageStack = new Set();
         this.downStack = new Set();
         this.connectLimit = 5;
-        if (this.loader.get('init')) {
-            this.loader.get('init')(this.loader);
+        if (this.head.init) {
+            this.head.init(this);
         }
-        this.head = loader.export();
     }
 
-    start(restart) {
+    async start(restart) {
+        if (this.runing) {
+            return;
+        }
         if (restart) {
             this.db.clear();
         }
         this.runing = true;
         if (restart || !this.db.isExist(this.head.url)) {
-            if (this.head.restart) {
-                this.head.restart(this);
+            if (this.head.prep) {
+                await this.head.prep(this);
             }
             let url = this.head.url;
             if (!/^http/.test(url)) {
@@ -51,7 +54,7 @@ class Queen extends EventEmitter {
         }
         this.emit('start');
         if (this.head.start) {
-            this.head.start(this);
+            await this.head.start(this);
         }
         _checkPageQueue(this);
         _checkDownloadQueue(this);
@@ -79,7 +82,7 @@ class Queen extends EventEmitter {
 
     get agent() {
         if (!this._agent_ipc_ || !this._agent_ipc_.isLive) {
-            this.connectLimit --;
+            this.connectLimit--;
             let config = {};
             for (let k in this.head) {
                 if (typeof this.head[k] !== 'function') {
@@ -98,21 +101,37 @@ class Queen extends EventEmitter {
 
     appendPage(url) {
         if (this.head.filter && this.head.filter(url) === false) {
-            return;
+            return false;
         }
         if (this.db.appendPage(url)) {
             this.emit('appendPage', url);
             laterCheckPageQueue.callOnce(this);
+            return true;
         }
+        return false;
     }
 
     appendDownload(url) {
         if (this.head.filterDownload && this.head.filterDownload(url) === false) {
-            return;
+            return false;
         }
         if (this.db.appendDownload(url)) {
             this.emit('appendDownload', url);
             laterCheckDownloadQueue.callOnce(this);
+            return true;
+        }
+        return false;
+    }
+
+    async load(req) {
+        if (typeof req === 'string') {
+            req = { url: req };
+        } try {
+            let res = await this.agent.load(req);
+            this.emit('loaded', req, res);
+            return res;
+        } catch (err) {
+            _printError(err);
         }
     }
 
@@ -121,15 +140,15 @@ class Queen extends EventEmitter {
             req = { url: req };
         }
         if (this.head.willLoad) {
-            req = this.head.willLoad(req);
+            await this.head.willLoad(req);
         }
         try {
             let res = await this.agent.loadPage(req);
             if (res && res.ok) {
                 let store = res.store;
                 if (this.head.loaded) {
-                    let crawl = new Crawl(this, res);
-                    this.head.loaded(res.body, store && store.links || [], store && store.links, crawl);
+                    let crawler = new Crawler(this, res);
+                    await this.head.loaded(res.body, store && store.links || [], store && store.links, crawler);
 
                 } else if (store) {
                     let from = Url.parse(res.url || req.url);
@@ -147,7 +166,7 @@ class Queen extends EventEmitter {
             }
             this.emit('loaded', req, res);
         } catch (err) {
-            ___print('#R{[Error]}', err.toString());
+            _printError(err);
             if (_checkAgentInterrupt(this, err)) {
                 await _wait(500);
                 await this.loadPage(req);
@@ -168,8 +187,8 @@ class Queen extends EventEmitter {
             }
             this.emit('downloaded', { url: url }, res);
         } catch (err) {
-            ___print('#R{[Error]}', err.toString());
-            if (_checkAgentInterrupt(this, err)){
+            _printError(err);
+            if (_checkAgentInterrupt(this, err)) {
                 await _wait(500);
                 await this.download(url, to);
                 return;
@@ -183,7 +202,7 @@ class Queen extends EventEmitter {
             let local = Path.resolve(this.head.outdir, to);
             return await Util.saveFile(local, content);
         } catch (err) {
-            ___print('#R{[Error]}', err.toString());
+            _printError(err);
             process.exit();
         }
     }
@@ -191,12 +210,11 @@ class Queen extends EventEmitter {
     //////////////////////////////////////////////////////
 
     read(name) {
-        return this.loader.get(name);
+        return this.loader.getData(name);
     }
 
     save(name, value) {
-        this.loader.set(name, value);
-        this.loader.save();
+        this.loader.setData(name, value);
         return value;
     }
 
@@ -322,7 +340,7 @@ function _makeLocalPath(queen, url) {
 
         case 'group':
             if (queen._group_name_ === undefined) {
-                let dirs = File.ls(queen.info.outdir);
+                let dirs = File.ls(queen.head.outdir);
                 queen._group_name_ = 0;
                 queen._group_count = 0;
                 if (dirs.length) {
@@ -335,10 +353,14 @@ function _makeLocalPath(queen, url) {
                         }
                     }
                 }
-                queen._save_group_count = File.ls(queen.info.outdir + "/" + queen._group_name_).length;
+                if (File.isdir(queen.head.outdir + "/" + queen._group_name_)) {
+                    queen._group_count = File.ls(queen.head.outdir + "/" + queen._group_name_).length;
+                } else {
+                    queen._group_count = 0;
+                }
             }
             if (queen._group_count >= 500) {
-                queen._group_name_ += 500;
+                queen._group_name_ += 1;
                 queen._group_count = 0;
             }
             queen._group_count += 1;
@@ -364,4 +386,13 @@ function _checkAgentInterrupt(queen, error) {
         }
     }
     return false;
+}
+
+function _printError(error) {
+    if (error.stack) {
+        ___print('\n#R{[Error]}');
+        ___print(error.stack);
+    } else {
+        ___print(' #R{[Error]}', error.toString());
+    }
 }

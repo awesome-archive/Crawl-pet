@@ -2,8 +2,8 @@
 const Path = require('path');
 const File = require('hi-lib/file');
 
-const TEMPLATE_NAME = "crawl.js";
-const HEAD = {
+const TEMPLATE_NAME = "crawler.js";
+const DEFAULT = {
     "url": null,
     "outdir": null,
     "saveMode": 'url', // type, group default
@@ -15,7 +15,9 @@ const HEAD = {
     "proxy": false,
     'userAgent': null,
     "cookies": null,
-    "runJs": false
+    "fileTypes": "png|gif|jpg|jpeg|svg|xml|mp3|mp4|pdf|torrent|zip|rar",
+    "sleep": 1000,
+    "crawl_data": {}
 };
 const TEMPLATE = `
 module.exports = {
@@ -24,54 +26,20 @@ module.exports = {
      ****************/
     projectDir: __dirname,
     %{config},
-    fileTypes: "png|gif|jpg|jpeg|svg|xml|mp3|mp4|pdf|torrent|zip|rar",
-    sleep: 1000,
+
+    // crawl_js : "./parser.js",
 
     /****************
-     * Parser part
+     * Crawler part
      *****************/
-
-    data : {},
-
-    /*  */
-    // parser : "./parser.js",
-
-    /*  */
-    // init(loader) {
-    //
-    // },
-
-    // start(queen) {
-    //
-    // },
-
-    // restart(queen) {
-    //
-    // },
-
-    // filter(url) {
-    //     return !/baidu\.com/.test(url);
-    // },
-    
-    // filterDownload(url) {
-    //     return /\.(jpg|gif|jpeg|png)/.test(url);
-    // },
-    
-    // willLoad(request) {
-    //     return request;
-    // },
-
-    // loaded(body, links, files, crawl) {
-    //     // crawl.appendPage(url);
-    //     // crawl.appendDownload(url);
-    //     // crawl.loadPage(url);
-    //     // crawl.download(url, [local]);
-    //     // crawl.saveContent(local, content);
-    // },
-
-    // implant(crawl) {
-    //
-    // }
+    // init(queen) {},
+    // prep(queen) {},
+    // start(queen) {},
+    // filter(url) {},
+    // filterDownload(url) {},
+    // willLoad(request) {},
+    // loaded(body, links, files, crawler) {},
+    // browser(crawler) {}
 }`;
 
 class Loader {
@@ -82,16 +50,49 @@ class Loader {
         this.isExist = false;
         this._temp_ = {};
         this._origin_ = {};
+        this._changed_ = new Set();
         if (File.isfile(this.saveTo)) {
             this.isExist = true;
             this._origin_ = require(this.saveTo);
-            if (this._origin_.parser) {
-                this.extends(this._origin_.parser);
+            if (this._origin_.crawl_js) {
+                this.loadCrawl(this._origin_.crawl_js);
             }
         } else {
             this._temp_.projectDir = this.projectDir;
         }
+        this._origin_.crawl_data = this._origin_.crawl_data || {};
         this._temp_.outdir = this._origin_.outdir || this._origin_.projectDir || this.projectDir;
+    }
+
+    loadCrawl(file) {
+        let ref = require(Path.resolve(this.projectDir, file));
+        Object.assign(this._origin_, ref);
+    }
+
+    get(name) {
+        return this._temp_[name] || this._origin_[name] || DEFAULT[name];
+    }
+
+    set(name, value) {
+        if (name == 'outdir') {
+            this._temp_.outdir = Path.resolve(value);
+        } else {
+            this._temp_[name] = value;
+        }
+        this._changed_.add(name);
+        _pushSave(this);
+        return value;
+    }
+
+    getData(name) {
+        return this._origin_.crawl_data[name];
+    }
+
+    setData(name, value) {
+        this._origin_.crawl_data[name] = value;
+        this._changed_.add('crawl_data');
+        _pushSave(this);
+        return value;
     }
 
     export() {
@@ -101,55 +102,19 @@ class Loader {
         return this._origin_;
     }
 
-    set(name, value) {
-        if (name == 'outdir') {
-            this._temp_.outdir = Path.resolve(value);
-        } else {
-            this._temp_[name] = value;
-        }
-    }
-
-    get(name) {
-        return this._temp_[name] || this._origin_[name] || HEAD[name];
-    }
-
-    extends(file) {
-        let ref = require(Path.resolve(this.projectDir, file));
-        Object.assign(this._origin_, ref);
-    }
-
     save() {
-        let Lexer = require('hi-lib/lexer');
+        _save_cache.delete(this);
         let text = '';
         if (this.isExist) {
             text = File.readFile(this.saveTo);
-            for (let k in this._temp_) {
-                let v = this._temp_[k];
-                if (k in this._origin_) {
-                    if (this._origin_[k] === v) {
-                        continue;
-                    }
-                    let re = new RegExp(`("${k}"|'${k}'|\\b${k}\\b)`);
-                    let m = text.match(re);
-                    if (m) {
-                        let end = Lexer.search(text, /,|\}/, m.index);
-                        if (end >= 0) {
-                            text = text.substr(0, m.index) + k + ' : ' + _stringify(v) + text.substr(end);
-                            continue;
-                        }
-                    }
-                } else {
-                    text = text.replace(/((\n?[ \t]*)["']?\bprojectDir["']?\s*:\s*__dirname\s*,)/, "$1$2" + k + ' : ' + _stringify(v) + ',');
-                }
-                this._origin_[k] = v;
+            for (let key of this._changed_) {
+                let value = key in this._temp_ ? this._temp_[key] : this._origin_[key];
+                text = _replaceCrawlVariable(text, this._origin_, key, value);
+                this._origin_[key] = value;
             }
+            this._changed_.clear();
         } else {
-            // TEMPLATE.
-            let ref = [];
-            for (let k in HEAD) {
-                ref.push(k + ' : ' + _stringify((k in this._temp_) ? this._temp_[k] : HEAD[k]));
-            }
-            text = TEMPLATE.replace('%{config}', ref.join(',\n    '));
+            text = _createCrawlTemplate( this._origin_, this._temp_);
         }
         File.writeFile(this.saveTo, text);
     }
@@ -178,11 +143,74 @@ class Loader {
     }
 }
 
+
+const _save_cache = new Set();
+var _save_timing = null;
+
+process.on('error', _checkSave);
+
+process.on('beforeExit', _checkSave);
+
+function _checkSave() {
+    if (_save_timing){
+        clearTimeout(_save_timing);
+    }
+    _save_timing = null;
+    for (let loader of _save_cache) {
+        if (loader._changed_.size) {
+            loader.save();
+        }
+        _save_cache.delete(loader);
+    }
+}
+
+function _pushSave(loader) {
+    _save_cache.add(loader);
+    if (_save_timing === null) {
+        _save_timing = setTimeout(_checkSave, 60000);
+    }
+}
+
 function _stringify(obj) {
     if (typeof obj === 'function') {
         return obj.toString();
     }
     return JSON.stringify(obj);
+}
+
+function _createCrawlTemplate(origin, temp) {
+    let ref = [];
+    let data = Object.assign({}, DEFAULT, origin, temp);
+    for (let k in data) {
+        if (k === 'projectDir') {
+            continue;
+        }
+        ref.push(k + ' : ' + _stringify(data[k]));
+    }
+    return TEMPLATE.replace('%{config}', ref.join(',\n    '));
+}
+
+function _replaceCrawlVariable(text, origin, key, value) {
+    if (key === 'projectDir') {
+        return text;
+    }
+    if (key in origin) {
+        let re = new RegExp(`(\\[\\s*"${key}"\\s*\\]|\\[\\s*'${key}'\\s*\\]|"${key}"|'${key}'|\\b${key}\\b)([\\s\\n]*[:=][\\s\\n]*)`);
+        let m = text.match(re);
+        if (m) {
+            const Lexer = require('hi-lib/lexer');
+            let end = Lexer.search(text, /,|\}/, m.index);
+            if (end >= 0) {
+                return text.substr(0, m.index) + key + m[2] + _stringify(value) + text.substr(end);
+            }
+        }
+    } else {
+        let m = text.match(/\bexports\s*=\s*\{\s*?(\n\s*)?/);
+        if (m) {
+            return text.substr(0, m.index + m[0].length) + key + ': ' + _stringify(value) + ',' + (m[1]||'') + text.substr(m.index + m[0].length);
+        }
+        return text + `\nmodule.exports["${key}"] = ${_stringify(value)};`;
+    }
 }
 
 module.exports = Loader;

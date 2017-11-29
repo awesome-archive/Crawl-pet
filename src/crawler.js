@@ -1,7 +1,7 @@
 const Url = require('url');
 const Util = require('./util');
 
-class Crawl {
+class Crawler {
 
     constructor(queen, response) {
         this.queen = queen;
@@ -18,16 +18,20 @@ class Crawl {
         return this.queen.appendDownload(Util.resolveUrl(this.uri, url));
     }
 
-    loadPage(opt) {
-        if (typeof opt === 'string') {
-            opt = { url: opt };
-        }
-        opt.url = Util.resolveUrl(this.uri, opt.url);
-        return this.queen.loadPage(opt);
+    load(req) {
+        return this.queen.load(req);
     }
 
-    download(url, local) {
-        return this.queen.download(Util.resolveUrl(this.uri, url), local);
+    loadPage(req) {
+        if (typeof req === 'string') {
+            req = { url: req };
+        }
+        req.url = Util.resolveUrl(this.uri, req.url);
+        return this.queen.loadPage(req);
+    }
+
+    download(url, to) {
+        return this.queen.download(Util.resolveUrl(this.uri, url), to);
     }
 
     saveContent(local, content) {
@@ -44,4 +48,4 @@ class Crawl {
 
 }
 
-module.exports = Crawl;
+module.exports = Crawler;

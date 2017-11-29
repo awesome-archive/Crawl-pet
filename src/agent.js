@@ -72,7 +72,7 @@ Ipc.exports = {
         }
         let res = copyResponse(response);
         if (size) {
-            res.message = size.width + ' x ' + size.height;
+            res.message = 'size: ' + size.width + 'x' + size.height;
         }
         if (response.ok) {
             let stream;
@@ -93,6 +93,7 @@ Ipc.exports = {
                 res.error = err.message;
             }
         }
+        response = null;
         return res;
     }
 

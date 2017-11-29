@@ -9,10 +9,9 @@ const Loader = require("./src/loader");
 const Util = require('./src/util');
 const ChildProcess = require('child_process');
 
-
 const argv = Argv.new(`
 Crawl Pet Help:
-  Usage: #c{crawl-pet .}
+  Usage: #c{crawl-pet [path]}
   
   Options:
     #c{+new}            [url]                                     #d{新建一个项目}
@@ -25,10 +24,11 @@ Crawl Pet Help:
     #c{--json}                                                    #d{对的数据以json格式输出}
     #c{--proxy}         <127.0.0.1:1087>                          #d{临时改变项目的代理配置}
     #c{--parser}        <path>                                    #d{临时改变项目的解析器}
+    #c{--debug}                                                   #d{启用调试}
     #c{-v, --version}                                             #d{查看软件版本}
     #c{-h, --help}                                                #d{查看帮助信息}
 
-#r{More configuration in info.json file!}
+#r{More configuration in crawler.js file!}
 `);
 
 try {
@@ -64,7 +64,7 @@ function _step1() {
 	} else {
 		let loader = Loader.load(argv._[0] || './');
 		if (!loader) {
-			___print('#r{!} 没有找到爬虫.');
+			___print(`#r{!} 没有找到爬虫 (#c{${Path.join(argv._[0] || './', 'crawler.js')}}). `);
 			process.exit(1);
 		}
 		_step2(loader);
@@ -81,7 +81,7 @@ function _step2(loader) {
 			___print(`! #r{没有找到文件 #g{${ref}}}`);
 			process.exit(1);
 		}
-		loader.extends(Path.resolve(ref));
+		loader.loadCrawl(Path.resolve(ref));
 	}
 	if (argv.get('list')) {
 		_listCommand(loader);
@@ -89,7 +89,7 @@ function _step2(loader) {
 	if (argv.get('find')) {
 		_findCommand(loader);
 	}
-	if (loader.get('runJs') || loader.get('implant')) {
+	if (loader.get('runJs') || loader.get('browser')) {
 
 		// "electron": "^1.7.9",
 		// console.log((__dirname + '/node_modules/electron'))
@@ -183,36 +183,52 @@ function _forEach(crawler, type, callback) {
 
 function _runCrawler(loader) {
 	let print_stack = ___print.stack();
-	print_stack.debug = true;
+	print_stack.debug = !!argv.get('debug');
+
+	let print = function (prefix, url, ok, msg, err, final) {
+		let text = url;
+		if (url.length > 50) {
+			text = url.substr(0, 20) + '...' + url.substr(url.length-27);
+		} else {
+			text += ' '.repeat(Math.max(0, 50 - url.length));
+		}
+		if (arguments.length === 2) {
+			print_stack.update(url, prefix + ' #d{' + text + '}');
+		} else {
+			text += ok ? ' | #g{✔︎}' : ' | #r{✘}';
+			if (msg) {
+				text += ' | #d{' + msg + '}';
+			}
+			if (err) {
+				text += ' | #R{' + err + '}';
+			}
+			print_stack.final(url, prefix + ' ' + text);
+		}
+	};
 
 	print_stack.update('---->', '#y{正在加载队列....}');
 	let startTime = Date.now();
 	let crawl_queen = new Queen(loader, argv);
-
 	crawl_queen.on('start', () => {
 		startTime = Date.now();
 	});
 	crawl_queen.on('over', () => {
-		___print(`\n#g{[Over]} run time: #y{${Util.countTime(Date.now() - startTime)}}`);
+		print_stack.push(`\n#g{[Over]} run time: #y{${Util.countTime(Date.now() - startTime)}}`);
 	});
 	crawl_queen.on('loading', (request) => {
-		print_stack.update(request.url, '#c{[-]} #d{' + request.url + '}');
+		print('#y{[+]}', request.url);
 	});
 	crawl_queen.on('loaded', (request, response) => {
 		response = response || {};
-		let status = response.ok ? '  #g{✔︎}' : '  #r{✘}';
-		let msg = response.error || response.message;
-		print_stack.final(request.url, `#c{[-]} ${request.url}  ${status} ${msg ? ': ' + msg : ''}`);
+		print('#y{[+]}', request.url, response.ok, response.message, response.error);
 	});
 	crawl_queen.on('downloading', (request) => {
-		print_stack.update(request.url, '#g{[⇣]} #d{' + request.url + '}');
+		print('#g{[⇣]}', request.url);
 	});
 	crawl_queen.on('downloaded', (request, response) => {
 		response = response || {};
-		let status = response.ok ? '  #g{✔︎}' : '  #r{✘}';
-		let msg = response.error || response.message;
-		print_stack.final(request.url, `#g{[⇣]} ${request.url}  ${status} ${msg ? ': ' + msg : ''}`);
+		print('#g{[⇣]}', request.url, response.ok, response.message, response.error);
 	});
 	crawl_queen.start(argv.get('restart'));
-	print_stack.update('---->', '#g{开始爬取}');
+	print_stack.final('---->', '#g{开始爬取}');
 }

@@ -2,7 +2,7 @@
 	"name": "crawl-pet",
 	"version": "1.0.0",
 	"author": "Wang Liang",
-	"description": "Support queue Nodejs crawler framework",
+	"description": "Simplified crawler framework of Nodejs",
 	"main": "pet/index.js",
 	"repository": {
 		"type": "git",
@@ -16,12 +16,12 @@
 	},
 	"license": "MIT",
 	"dependencies": {
-		"hi-lib": "^0.1.2",
-		"hi-fetch": "^0.0.1",
+		"hi-lib": "^0.1.3",
+		"hi-fetch": "^0.0.2",
 		"leveldb-addon": "^2.0.4"
 	},
 	"devDependencies": {
-		"hi-test": "~1.0.5"
+		"hi-test": "~2.1.6"
 	},
 	"keywords": [
 		"crawler",
