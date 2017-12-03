@@ -13,6 +13,8 @@ const Crawler = require('./crawler');
 
 const laterCheckPageQueue = new Later(_checkPageQueue);
 const laterCheckDownloadQueue = new Later(_checkDownloadQueue);
+const _group_limit = 200;
+
 
 class Queen extends EventEmitter {
 
@@ -184,6 +186,9 @@ class Queen extends EventEmitter {
                 this.db.saveLocal(url, res.ok ? res.saveTo : 'failed');
             } else {
                 this.db.saveFailed(url);
+                if (this._group_filecount_) {
+                    this._group_filecount_ -= 1;
+                }
             }
             this.emit('downloaded', { url: url }, res);
         } catch (err) {
@@ -339,32 +344,34 @@ function _makeLocalPath(queen, url) {
             return i.extname + '/' + basename;
 
         case 'group':
-            if (queen._group_name_ === undefined) {
-                let dirs = File.ls(queen.head.outdir);
-                queen._group_name_ = 0;
-                queen._group_count = 0;
+            if (queen._group_dirname_ === undefined) {
+                queen._group_dirname_ = 0;
+                queen._group_filecount_ = 0;
+                let outdir = queen.head.outdir;
+                let dirs = File.ls(outdir);
                 if (dirs.length) {
-                    for (let name of dirs) {
+                    for (let path of dirs) {
+                        let name = path.substr(outdir.length+1);
                         if (/^\d+$/.test(name)) {
                             let n = parseInt(name);
-                            if (n > queen._group_name_) {
-                                queen._group_name_ = n;
+                            if (n > queen._group_dirname_) {
+                                queen._group_dirname_ = n;
                             }
                         }
                     }
                 }
-                if (File.isdir(queen.head.outdir + "/" + queen._group_name_)) {
-                    queen._group_count = File.ls(queen.head.outdir + "/" + queen._group_name_).length;
+                if (File.isdir(queen.head.outdir + "/" + queen._group_dirname_)) {
+                    queen._group_filecount_ = File.ls(queen.head.outdir + "/" + queen._group_dirname_).length;
                 } else {
-                    queen._group_count = 0;
+                    queen._group_filecount_ = 0;
                 }
             }
-            if (queen._group_count >= 500) {
-                queen._group_name_ += 1;
-                queen._group_count = 0;
+            if (queen._group_filecount_ >= _group_limit) {
+                queen._group_dirname_ += 1;
+                queen._group_filecount_ = 0;
             }
-            queen._group_count += 1;
-            return queen._group_name_ + "/" + basename;
+            queen._group_filecount_ += 1;
+            return queen._group_dirname_ + "/" + basename;
 
         case 'default': default:
             return basename;

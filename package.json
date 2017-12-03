@@ -1,6 +1,6 @@
 {
 	"name": "crawl-pet",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"author": "Wang Liang",
 	"description": "Simplified crawler framework of Nodejs",
 	"main": "pet/index.js",
@@ -17,16 +17,11 @@
 	"license": "MIT",
 	"dependencies": {
 		"hi-lib": "^0.1.3",
-		"hi-fetch": "^0.0.2",
+		"hi-fetch": "^0.0.3",
 		"leveldb-addon": "^2.0.4"
-	},
-	"devDependencies": {
-		"hi-test": "~2.1.6"
 	},
 	"keywords": [
 		"crawler",
-		"crawl",
-		"command",
-		"arguments"
+		"crawl"
 	]
 }
