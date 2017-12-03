@@ -19,7 +19,7 @@ Crawl Pet Help:
     #c{-c, --config}    <name[=value]>...                         #d{读写项目配置}
     #c{-i, --info}                                                #d{查看项目的信息}
     #c{-l, --list}      <page|download|local>                     #d{查看队列数据}
-    #c{-f, --find}      <type> <keyword>                          #d{查找队列的数据}
+    #c{-f, --find}      <page|download|local> <keyword>           #d{查找队列的数据}
     #c{-d, --delete}                                              #d{删除匹配的队列数据}
     #c{--json}                                                    #d{对的数据以json格式输出}
     #c{--proxy}         <127.0.0.1:1087>                          #d{临时改变项目的代理配置}
@@ -83,11 +83,17 @@ function _step2(loader) {
 		}
 		loader.loadCrawl(Path.resolve(ref));
 	}
+	if (argv.get('info')) {
+		_showInfo(loader);
+		process.exit();
+	}
 	if (argv.get('list')) {
 		_listCommand(loader);
+		process.exit();
 	}
 	if (argv.get('find')) {
 		_findCommand(loader);
+		process.exit();
 	}
 	if (loader.get('runJs') || loader.get('browser')) {
 
@@ -123,10 +129,14 @@ function _checkConfig(loader, value) {
 	process.exit();
 }
 
+function _showInfo(loader) {
+	___print('url   :', '#g{'+loader.get('url')+'}');
+	___print('outdir:', '#c{'+loader.get('outdir')+'}');
+}
+
 function _listCommand(loader) {
 	let crawler = new Queen(loader, argv);
 	_forEach(crawler, argv.get('list'));
-	process.exit();
 }
 
 function _findCommand(loader) {
@@ -149,7 +159,6 @@ function _findCommand(loader) {
 		}
 		return value;
 	});
-	process.exit();
 }
 
 function _forEach(crawler, type, callback) {
