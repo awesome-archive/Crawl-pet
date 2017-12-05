@@ -1,33 +1,12 @@
 
-let _inited = false;
-let _end = false;
-
-function auto_append(queen, host, total) {
-    if (_end) {
-        return;
-    }
-    let offset = queen.read('post_offset') || 0;
-    let limit = 5;
-    while (offset < total && limit-- > 0) {
-        queen.appendPage('https://' + host + '/api/read/json?start=' + offset + '&num=20');
-        offset += 20;
-    }
-    queen.save('post_offset', offset + 20);
-    if (limit <= 0) {
-        setTimeout(()=>{
-            auto_append(queen, host, total);
-        }, 10000);
-    }
-}
-
 module.exports = {
 
     prep(queen) {
         let url = queen.head.url;
         if (/^(?:https?:\/\/)?([\w\-]+\.tumblr\.com)\/?$/.test(url)) {
-            queen.head.url = "https://" + RegExp.$1 + '/api/read/json?start=0&num=1';
+            queen.head.url = "https://" + RegExp.$1 + '/api/read/json?start=0&num=10';
         }
-        queen.save('post_offset', 0);
+        queen.save('post_offset', 10);
     },
 
     loaded(body, links, files, crawler) {
@@ -62,10 +41,16 @@ module.exports = {
                     }
                 }
             }
-            _end = !!down_count;
-            if (_inited === false){
-                _inited = true;
-                auto_append(crawler.queen, crawler.uri.host, blog['posts-total']);
+            if (down_count) {
+                let host = crawler.uri.host;
+                let total = blog['posts-total'];
+                let offset = crawler.read('post_offset') || 0;
+                let limit = 5;
+                while (offset < total && limit-- > 0) {
+                    crawler.queen.appendPage('https://' + host + '/api/read/json?start=' + offset + '&num=20');
+                    offset += 20;
+                }
+                crawler.save('post_offset', offset + 20);
             }
         } catch (err) {
             // PASS
