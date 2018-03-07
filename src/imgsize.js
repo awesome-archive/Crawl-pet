@@ -1,7 +1,7 @@
 
 const Fetch = require('hi-fetch');
 
-function _imgSize(url, proxy) {
+exports.size = function (url, proxy) {
     var m = url.match(/\.(jpeg|jpg|bmp|gif|png)(?:\s*$|\?)/);
     if (m) {
         let ext = m[1].toLowerCase();
@@ -24,24 +24,29 @@ function _imgSize(url, proxy) {
         }
         let client = proxy instanceof Fetch.Client ? proxy : new Fetch.Client({ proxy: proxy });
         return _requestImg(url, client, range).then((size) => {
-            if (!size && (ext === 'jpg' || ext === 'jpeg')){
+            if (!size && (ext === 'jpg' || ext === 'jpeg')) {
                 return _requestImg(url, client, '0-10240');
             }
             return size;
         });
     }
     return Promise.resolve();
-}
+};
 
-function _requestImg(url, client, bytes) {
-    var options = {
+async function _requestImg(url, client, bytes) {
+    let options = {
         method: "GET",
         url: url,
         headers: {
             Range: "bytes=" + bytes
         }
     };
-    return client.send(options).then(_parseResSize);
+    try {
+        let respones = await client.send(options);
+        return _parseResSize(respones);
+    } catch (e) {
+        return;
+    }
 }
 
 function _parseResSize(respones) {
@@ -62,7 +67,7 @@ function _parseResSize(respones) {
     }
     return respones.buffer().then((buf) => {
         if (buf) {
-            let size = _bufferSize(buf);
+            let size = exports.bufferSize(buf);
             if (size) {
                 Object.assign(size, info);
                 info = null;
@@ -72,7 +77,7 @@ function _parseResSize(respones) {
     });
 }
 
-function _bufferSize(buffer, type) {
+exports.bufferSize = function (buffer, type) {
     type = type || _getType(buffer);
     switch (type) {
         case "png":
@@ -96,7 +101,7 @@ function _bufferSize(buffer, type) {
         case "jpg": case "jpeg":
             return _jpgBufferSize(buffer);
     }
-}
+};
 
 function _jpgBufferSize(buffer) {
     buffer = buffer.slice(4);
@@ -166,13 +171,10 @@ function _isJPG(buffer) {
     return 'ffd8' === SOIMarker;
 }
 
-exports.size = _imgSize;
-exports.bufferSize = _bufferSize;
-
 if (!module.parent) {
     let url = process.argv[2];
     if (url) {
-        _imgSize(url, process.argv[3]).then((size) => {
+        exports.size(url, process.argv[3]).then((size) => {
             console.log(JSON.stringify(size));
         });
     }

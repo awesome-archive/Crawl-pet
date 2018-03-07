@@ -1,6 +1,6 @@
 {
 	"name": "crawl-pet",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"author": "Wang Liang",
 	"description": "Simplified crawler framework of Nodejs",
 	"main": "pet/index.js",
