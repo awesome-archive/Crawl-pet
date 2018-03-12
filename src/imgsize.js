@@ -170,12 +170,3 @@ function _isJPG(buffer) {
     var SOIMarker = buffer.toString('hex', 0, 2);
     return 'ffd8' === SOIMarker;
 }
-
-if (!module.parent) {
-    let url = process.argv[2];
-    if (url) {
-        exports.size(url, process.argv[3]).then((size) => {
-            console.log(JSON.stringify(size));
-        });
-    }
-}

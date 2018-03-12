@@ -7,6 +7,7 @@ const Path = require('path');
 const File = require('hi-lib/file');
 const Later = require('hi-lib/later');
 const Ipc = require('hi-lib/ipc');
+const Shadow = require('hi-lib/shadow');
 const DB = require('./db');
 const Util = require('./util');
 const Crawler = require('./crawler');
@@ -70,7 +71,8 @@ class Queen extends EventEmitter {
             }
             this.runing = false;
             if (this._agent_ipc_) {
-                this._agent_ipc_.close();
+                this._agent_ipc_.kill();
+                this._agent_exports_ = null;
             }
             this.emit('over', { type: 'over' });
             process.exit();
@@ -83,7 +85,7 @@ class Queen extends EventEmitter {
     }
 
     get agent() {
-        if (!this._agent_ipc_ || !this._agent_ipc_.isLive) {
+        if (!this._agent_ipc_ || !this._agent_ipc_.connected) {
             this.connectLimit--;
             let config = {};
             for (let k in this.head) {
@@ -94,9 +96,13 @@ class Queen extends EventEmitter {
             if (this.argv.get('proxy')) {
                 config.proxy = this.argv.get('proxy');
             }
-            this._agent_ipc_ = Ipc.import(__dirname + '/agent.js', [JSON.stringify(config)], {}, this);
+            this._agent_ipc_ = Ipc.fork(__dirname + '/agent.js', [JSON.stringify(config)], {});
+            this._agent_ipc_.on('emit', (ctx, name, req)=>{
+                this.emit(name, req);
+            });
+            this._agent_exports_ = Shadow.advancer(this._agent_ipc_.import());
         }
-        return this._agent_ipc_;
+        return this._agent_exports_;
     }
 
     /////////////////////////////////////////////// 
