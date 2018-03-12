@@ -16,7 +16,6 @@ const laterCheckPageQueue = new Later(_checkPageQueue);
 const laterCheckDownloadQueue = new Later(_checkDownloadQueue);
 const _group_limit = 200;
 
-
 class Queen extends EventEmitter {
 
     constructor(loader, argv) {
@@ -97,7 +96,7 @@ class Queen extends EventEmitter {
                 config.proxy = this.argv.get('proxy');
             }
             this._agent_ipc_ = Ipc.fork(__dirname + '/agent.js', [JSON.stringify(config)], {});
-            this._agent_ipc_.on('emit', (ctx, name, req)=>{
+            this._agent_ipc_.on('emit', (ctx, name, req) => {
                 this.emit(name, req);
             });
             this._agent_exports_ = Shadow.advancer(this._agent_ipc_.import());
@@ -105,7 +104,7 @@ class Queen extends EventEmitter {
         return this._agent_exports_;
     }
 
-    /////////////////////////////////////////////// 
+    ///////////////////////////////////////////////
 
     appendPage(url) {
         if (this.head.filter && this.head.filter(url) === false) {
@@ -357,7 +356,7 @@ function _makeLocalPath(queen, url) {
                 let dirs = File.ls(outdir);
                 if (dirs.length) {
                     for (let path of dirs) {
-                        let name = path.substr(outdir.length+1);
+                        let name = path.substr(outdir.length + 1);
                         if (/^\d+$/.test(name)) {
                             let n = parseInt(name);
                             if (n > queen._group_dirname_) {
