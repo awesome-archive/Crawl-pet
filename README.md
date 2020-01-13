@@ -1,6 +1,6 @@
-# Crawl-pet
+# CRAWL-PET
 
-Nodejs crawler framework, Support queue
+Simplified crawler framework of Nodejs
 
 ## Installation
 
@@ -10,171 +10,132 @@ $ npm install crawl-pet -g
 
 ## Usage
 
-#### STEP 1: Create a project
+####  Create a project
 
 ```shell
-$ crawl-pet -u xxxx.com -o ./localdir
+$ crawl-pet new [url]
 ```
 
-After creating the project, will generate `info.json` file in the project directory, The `info.json` contains more Settings
-
-```json
-// info.json
-
-{
-    "url"      : "xxxx.com",
-    "outdir"   : ".",
-    "save"     : "url",
-    "types"    : "",
-    "limit"    : "5",
-    "parser"   : "",
-    "sleep"    : 200,
-    "timeout"  : 180000,
-  	"cookie"   : "",
-    "headers"  : {},
-    "proxy"    : "",
-    "maxsize"  : 0,
-    "minwidth" : 0,
-    "minheight": 0
-}
-```
-
-#### STEP 2: Create a parser.js
-
-In the project directory create a `parser.js` file, If load failure,  Then modify `info.json` `parser` value
+Generate **crawler.js** file
 
 ```javascript
-// parser.js
+// crawler.js
 
-// header method is optional
-exports.header = function(options, crawler_handle) {
-	// The "options" is request option
+module.exports = {
+    projectDir: __dirname,
+    url: "https://imgur.com",
+    outdir: "/downloade/imgur.com",
+    saveMode: "type",
+    keepName: true,
+    limits: 5,
+    timeout: 60000,
+    limitWidth: 700,
+    limitHeight: 0,
+    proxy: "http://127.0.0.1:1087",
+    userAgent: "Mozilla/5.0 .... Chrome/62.0.3202.62 Safari/537.36",
+    cookies: null,
+
+    fileTypes: "png|gif|jpg|jpeg|mp4",
+    sleep: 1000,
+    crawl_data: {},
+    
+    // crawl_js: "parser.js"
+  
+  	/**
+     * Parser part
+     */
+  
+  	// init(queen) {},
+    // prep(queen) {},
+    // start(queen) {},
+    // filter(url) {},
+    // filterDownload(url) {},
+    // willLoad(request) {},
+    // loaded(body, links, files, crawler) {},
+
 }
 
-exports.body = function(url, body, response, crawler_handle) {
-	const re = /\b(href|src)\s*=\s*["']([^'"#]+)/ig
-	var m = null
-	while (m = re.exec(body)){
-		let href = m[2]
-		if (/\.(png|gif|jpg|jpeg|mp4)\b/i.test(href)) {
-			crawler_handle.addDown(href)
-		}else if(!/\.(css|js|json|xml|svg)/.test(href)){
-			crawler_handle.addPage(href)
-		}
-	}
-	crawler_handle.over()
-}
 ```
 
-* **header(options, crawler_handle) **  
+#### Crawler parser methods
 
-When before the request call,  Modifying the `options` to edit the request information，If return false, then cancel the request. Detailed settings: https://github.com/request/request
+* **init**(queen)                                                   爬虫初始化时被调用
 
-* **body(url, body, response, crawler_handle)** 
+* **prep**(queen)                                                第一次运行，或传入 `--restart` 参数时被调用
 
-Used to analyze the page，Results use the `crawler_handle.addPage(url)`  and `crawler_handle.addDown(url)`  add to crawler queue. Call `crawler-handle.over()` to the end
+* **start**(queen)                                                开始爬取时被调用
 
-----
+* **filter**(url)                                                      筛选页面的 url，返回 true 时同过，返回 false 排除
 
-## CrawlerHandle Object
+* **filterDownload**(url)                                   筛选下地的 url
 
-**info**：                             Project configuration information
+* **willLoad**(request)                                       每个网络请求前被调用
 
-**uri**：                               Current uri                               
+* **loaded**(body, links, files, crawler)             每个网络请求返回时被调用
 
-**addPage(url)**:               Add a page into the queue
+  ​
 
-**addDown(url)**:              Add a download into the queue
+### API
 
-**save(content, ext)**:      Save the content to a file, path assigned by the program, you can set the file suffix
-
-**over()**:                             Page parsing is complete, the queue to get to the next
-
-**stop()**：                          Stop all the queue
-
-
-
-# Crawler Module
-
-- **Crawler.create(info, parser)**: 
-
-  return crawler object.
-
-> **parameters**:
->
-> ​     **info**  with the following options:
-> ​         `url`   `outdir`   `limit`   `sleep`   `timeout`   `types`   `save`  `maxsize`   `minwidth`   `minheight`
->
-> ​         `headers` : Set up request header information
->
-> ​        `proxy` : Set up http proxy
->
-> ​    **parser** (optional) is a module consists of the following two methods:
->
-> ​       `hearder(options, info)` 
->
-> ​      `body(url, body, response, crawler_hendle)`
-
-- **run(callback) **:                                    Began to run, to invoke a callback when the queue is empty
-
-- **find(files, callback)**:                          Find the local files corresponding url link
-
-- **list(type, start, limit, callback)**:    View queue
-
-- **stop()**:                                                  Stop all the queue
-
+* **Queen**
+  * Event:
+    * start
+    * loading
+    * downloading
+    * loaded
+    * downloaded
+    * appendPage
+    * appendDownload
+    * over
+  * Queen.prototype.**runing**
+  * Queen.prototype.**db**
+  * Queen.prototype.**loader**
+  * Queen.prototype.**head**
+  * Queen.prototype.**agent**
+  * Queen.prototype.**start**(restart)
+  * Queen.prototype.**over**()
+  * Queen.prototype.**appendPage**(url)
+  * Queen.prototype.**appendDownload**(url)
+  * Queen.prototype.**load**(url)
+  * Queen.prototype.**loadPage**(url)
+  * Queen.prototype.**download**(url, to)
+  * Queen.prototype.**saveContent**(to, content)
+  * Queen.prototype.**read**(name)
+  * Queen.prototype.**save**(name, value)
+* **Crawler**
+  * Crawler.prototype.**queen**
+  * Crawler.prototype.**appendPage**(url)
+  * Crawler.prototype.**appendDownload**(url)
+  * Crawler.prototype.**load**(url)
+  * Crawler.prototype.**loadPage**(url)
+  * Crawler.prototype.**download**(url, load)
+  * Crawler.prototype.**saveContent**(to, content)
+  * Crawler.prototype.**read**(name)
+  * Crawler.prototype.**save**(name, value)
 
 
 ## Command help
 
 ```
-    -u, --url       string              Destination address
-    
-    -o, --outdir    string              Save the directory, Default use pwd
-    
-    -r, --restart                       Reload all page
-    
-    --clear                             Clear queue
-    
-    --save          string              Save file rules has [url/simple/group]
-                                        = url: Save the path consistent with url
-                                        = simple: Save file in the project path
-                                        = group: Save 500 files in one folder
-                                        
-    --types         array               Limit download file type
-    
-    --limit         number=5            Concurrency limit
-    
-    --sleep         number=200          Concurrent interval
-    
-    --timeout       number=180000       Queue timeout
-    
-    --proxy         string              Set up proxy
-    
-    --parser        string              Set crawl rule, it's a js file path!
-                                        The default load the parser.js file in the 
-                                        project path
-                                        
-    --maxsize       number              Limit the maximum size of the download file
-    
-    --minwidth      number              Limit the minimum width of the download file
-    
-    --minheight     number              Limit the minimum height of the download file
-    
-    -i, --info                          View the configuration file
-    
-    -l, --list      array               View the queue data 
-                                        e.g. [page/down/queue],0,-1
-    
-    -f, --find      array               Find the download URL of the local file
-    
-    --json                              Print result to json format
-    
-    -v, --version                       View version
-    
-    -h, --help                          View help
-    
-    --create-parser string             Create a parser.js file
+Crawl Pet Help:
+  Usage: crawl-pet [path]
+  
+  Options:
+    +new            [url]                                     新建一个项目
+    -r, --restart                                             从起始地址重新加载
+    -c, --config    <name[=value]>...                         读写项目配置
+    -i, --info                                                查看项目的信息
+    -l, --list      <page|download|local>                     查看队列数据
+    -f, --find      <type> <keyword>                          查找队列的数据
+    -d, --delete                                              删除匹配的队列数据
+    --json                                                    对的数据以json格式输出
+    --proxy         <127.0.0.1:1087>                          临时改变项目的代理配置
+    --parser        <path>                                    临时改变项目的解析器
+    --debug                                                   启用调试
+    -v, --version                                             查看软件版本
+    -h, --help                                                查看帮助信息
+
+More configuration in crawler.js file!
     
 ```
 

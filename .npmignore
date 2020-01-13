@@ -1,0 +1,13 @@
+build/
+xcode/
+test/
+node_modules/
+package-lock.json
+
+*.tar.gz
+build-pre-gyp/
+README
+INSTALL
+NEWS
+AUTHORS
+*.xcode*
